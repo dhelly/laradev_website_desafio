@@ -459,7 +459,8 @@ class Cropper
 Lembrando que o static é para não precisamos instanciar nossa classe.
 
 Vamos alterar agora na tag img.
-```
+
+```php
 @foreach ($posts as $post)
 <div class="col-lg-4 col-md-4">
     <div class="fh5co-blog animate-box">
@@ -475,4 +476,148 @@ Vamos alterar agora na tag img.
     </div>
 </div>
 @endforeach
+```
+### Comentários do facebook
+
+Acessando a url [Comments Plugin](https://developers.facebook.com/docs/plugins/comments/?locale=pt_BR)
+
+Pegamos apenas o `appId` e inserimos no nosso.
+
+Ps: Tive problemas para gerar no firefox.
+
+```php
+
+<div class="col-12">
+    <div class="fb-comments" data-href="{{ Request::url() }}" data-numposts="5" data-width="100%"></div>
+</div>
+
+
+@section('scripts')
+    <div id="fb-root"></div>
+    <script async defer
+            src="https://connect.facebook.net/pt_BR/sdk.js#xfbml=1&version=v3.2&appId=APPID&autoLogAppEvents=1"></script>
+@endsection
+```
+Lembrando que devemos ter como a url da publicação
+
+---
+Enviar o formulário de Email
+
+Lembrando de fazer as parametrizações no arquivo `.env`
+
+```php
+MAIL_DRIVER=
+MAIL_HOST=
+MAIL_PORT=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=
+MAIL_FROM_ADDRESS=noreply@jaqueline.dev
+MAIL_FROM_NAME=
+```
+
+Vamos criar o email com o markdown para temos um layout mais bonito.
+
+> php artisan make:mail Contact --markdown=email.contact
+
+Método `app>mail>Contact.php`
+```
+<?php
+
+namespace App\Mail;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Mail\Mailable;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Contracts\Queue\ShouldQueue;
+
+class Contact extends Mailable
+{
+    use Queueable, SerializesModels;
+
+    private $data;
+
+    /**
+     * Create a new message instance.
+     *
+     * @return void
+     */
+    public function __construct(array $data)
+    {
+        $this->data = $data;
+    }
+
+    /**
+     * Build the message.
+     *
+     * @return $this
+     */
+    public function build()
+    {
+        return $this->replyTo($this->data['reply_email'], $this->data['reply_email'])
+            ->to(env('MAIL_FROM_ADDRESS'), env('MAIL_FROM_NAME'))
+            ->from(env('MAIL_FROM_ADDRESS'), env('MAIL_FROM_NAME'))
+            ->subject('[NOVO CONTATO]: ' . $this->data['subject'])
+            ->markdown('email.contact', [
+                'reply_name' => $this->data['reply_name'],
+                'reply_email' => $this->data['reply_email'],
+                'subject' => $this->data['subject'],
+                'message' => $this->data['message']
+            ]);
+    }
+}
+```
+
+View `email>contato.blade.php`, responsável pela email que será enviado.
+```
+@component('mail::message')
+Olá Você recebeu um novo contato a partir de seu site!
+
+Nome: <strong>{{ $reply_name }}</strong>
+
+Email: <strong> {{ $reply_email }} </strong>
+
+Sobre: <strong>{{ $subject }}</strong>
+
+Mensagem:
+
+@component('mail::panel')
+{{ $message }}
+@endcomponent
+
+@endcomponent
+```
+
+Para podemos testar as visualização do nosso método
+```
+public function sendMail(Request $request)
+    {
+        $data = [
+            'reply_name' => $request->first_name . ' - ' . $request->last_name,
+            'reply_email' => $request->email,
+            'subject' => $request->subject,
+            'message' => $request->message
+        ];
+
+        return new Contact($data);
+    }
+```
+
+Para enviar devemos altear o método `sendMail`
+
+```
+public function sendMail(Request $request)
+    {
+        $data = [
+            'reply_name' => $request->first_name . ' - ' . $request->last_name,
+            'reply_email' => $request->email,
+            'subject' => $request->subject,
+            'message' => $request->message
+        ];
+
+        // return new Contact($data);
+        Mail::send(new Contact($data));
+
+        return redirect()->route('contact');
+    }
 ```
